@@ -192,7 +192,7 @@ export function checks(fl, pos, classes, issues) {
     if (!coupon && p.aci < aciBuy - 0.005) {
       out.push({
         kind: 'Ждём купон', item: p.name,
-        detail: `НКД ${p.aci.toFixed(2)} ₽ против ${aciBuy.toFixed(2)} ₽ при покупке ${last.date.split('-').reverse().join('.')} — купон выплачен или скоро придёт, внести, когда поступит`,
+        detail: `НКД ${p.aci.toFixed(2).replace('.', ',')} ₽ против ${aciBuy.toFixed(2).replace('.', ',')} ₽ при покупке ${last.date.split('-').reverse().join('.')} — купон выплачен или скоро придёт, внести, когда поступит`,
       });
     }
   }

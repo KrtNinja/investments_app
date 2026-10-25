@@ -12,6 +12,8 @@ function el(name, attrs = {}, text) {
   return e;
 }
 
+const rub = (x) => new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(x) + ' ₽';
+const pct = (x) => (x * 100).toFixed(1).replace('.', ',') + '%';
 const short = (x) => new Intl.NumberFormat('ru-RU', { notation: 'compact', maximumFractionDigits: 1 }).format(x);
 
 // Капитал и чистые вложения по снимкам истории.
@@ -47,7 +49,7 @@ export function historyChart(history, width) {
     if (history.length > 1) svg.append(el('polyline', { points: pts, fill: 'none', stroke: color, 'stroke-width': 2, 'stroke-dasharray': dash }));
     history.forEach((h, i) => {
       const c = el('circle', { cx: x(i), cy: y(h[key]), r: 3.5, fill: color });
-      c.append(el('title', {}, `${h.date}: ${new Intl.NumberFormat('ru-RU').format(h[key])} ₽`));
+      c.append(el('title', {}, `${h.date.split('-').reverse().join('.')}\nЧистые вложения: ${rub(h.net_invested)}\nКапитал: ${rub(h.capital)}\nПрирост: ${rub(h.growth)}`));
       svg.append(c);
     });
   }
@@ -64,11 +66,20 @@ export function targetBars(rows, width) {
     'aria-label': 'Текущая и целевая доля каждого выпуска' });
   rows.forEach((r, i) => {
     const cy = T + i * rowH + rowH / 2;
-    svg.append(el('text', { x: L - 8, y: cy + 4, 'text-anchor': 'end' }, r.label));
-    svg.append(el('rect', { x: L, y: cy - 7, width: Math.max(0, x(r.share) - L), height: 14, rx: 3,
+    const g = el('g');
+    svg.append(g);
+    if (r.value !== undefined) {
+      g.append(el('title', {}, `${r.label}\nСейчас: ${pct(r.share)} (${rub(r.value)})\nЦель: ${pct(r.target)} (${rub(r.goal)})\nДокупить: ${rub(r.to_buy)}`));
+      g.append(el('rect', { x: 0, y: cy - rowH / 2, width: W, height: rowH, fill: 'transparent' }));
+    }
+    // подпись не шире левого поля (~6,5 px на символ при 12px), полное название — в подсказке
+    const maxCh = Math.max(6, Math.floor((L - 12) / 6.5));
+    const label = r.label.length > maxCh ? r.label.slice(0, maxCh - 1) + '…' : r.label;
+    g.append(el('text', { x: L - 8, y: cy + 4, 'text-anchor': 'end' }, label));
+    g.append(el('rect', { x: L, y: cy - 7, width: Math.max(0, x(r.share) - L), height: 14, rx: 3,
       fill: r.share > r.target + 0.005 ? 'var(--loss)' : 'var(--coupon)', opacity: 0.85 }));
-    svg.append(el('line', { x1: x(r.target), x2: x(r.target), y1: cy - 11, y2: cy + 11, stroke: 'var(--target)', 'stroke-width': 2.5 }));
-    svg.append(el('text', { x: Math.max(x(r.share), x(r.target)) + 6, y: cy + 4 }, `${(r.share * 100).toFixed(1).replace('.', ',')}%`));
+    g.append(el('line', { x1: x(r.target), x2: x(r.target), y1: cy - 11, y2: cy + 11, stroke: 'var(--target)', 'stroke-width': 2.5 }));
+    g.append(el('text', { x: Math.max(x(r.share), x(r.target)) + 6, y: cy + 4 }, `${(r.share * 100).toFixed(1).replace('.', ',')}%`));
   });
   return svg;
 }

@@ -8,6 +8,7 @@
   --coupon: #2f7d5b;
   --loss: #b5483b;
   --target: #3459a6;
+  --warn: #8a5a00;
   --serif: 'PT Serif', Georgia, serif;
   --sans: 'PT Sans', 'Segoe UI', system-ui, sans-serif;
   color-scheme: light;
@@ -15,7 +16,7 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --paper: #151a22; --sheet: #1c222c; --ink: #e6eaf0; --ink-2: #9aa5b5;
-    --rule: #333c4a; --coupon: #5cb88d; --loss: #e07a6c; --target: #8aa6e6;
+    --rule: #333c4a; --coupon: #5cb88d; --loss: #e07a6c; --target: #8aa6e6; --warn: #e0a23a;
     color-scheme: dark;
   }
 }
@@ -128,3 +129,14 @@ dialog::backdrop { background: rgb(21 26 34 / .45); }
 .toc { display: flex; flex-wrap: wrap; gap: .25rem 1.25rem; padding: .75rem 0; border-bottom: 1px solid var(--rule); font-size: .9375rem; }
 .toc a { color: var(--ink-2); text-decoration: none; }
 .toc a:hover { color: var(--ink); text-decoration: underline; }
+
+/* Строки и пометки */
+tr.muted td { color: var(--ink-2); }
+td.note { color: var(--ink-2); }
+.checks b { color: var(--warn); }
+.note-line { font-size: .875rem; color: var(--ink-2); margin: .25rem 0 .75rem; }
+details.more { margin: .5rem 0 1rem; }
+details.more > summary { cursor: pointer; color: var(--ink-2); font-size: .9375rem; }
+details.more > summary:hover { color: var(--ink); }
+dl.kv dd.num { font-variant-numeric: tabular-nums; }
+dl.kv .strong { font-weight: 700; color: var(--ink); }
