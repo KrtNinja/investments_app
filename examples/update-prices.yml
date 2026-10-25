@@ -1,0 +1,39 @@
+# Положить в репозиторий с данными: .github/workflows/update-prices.yml
+# Каждый будний вечер берёт цены с Мосбиржи и коммитит их вместе со снимком в history.csv.
+# Если investments_app приватный, добавьте секрет APP_TOKEN (read-only доступ к нему)
+# и раскомментируйте строку token ниже.
+name: Актуализация цен
+
+on:
+  schedule:
+    - cron: '35 16 * * 1-5'   # 19:35 по Москве, после основной сессии
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  prices:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: data
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/investments_app
+          path: app
+          # token: ${{ secrets.APP_TOKEN }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Обновить цены во всех активных портфелях
+        working-directory: data
+        run: |
+          git config user.name "prices-bot"
+          git config user.email "prices-bot@users.noreply.github.com"
+          for id in $(awk -F, 'NR>1 && $6=="active" {print $1}' portfolios.csv); do
+            node ../app/cli/invest.js prices "$id" --data . --write --commit || echo "::warning::$id не обновился"
+          done
+          python3 scripts/validate.py
+          git push

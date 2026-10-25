@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; connect-src https://api.github.com https://iss.moex.com; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; script-src 'self'; base-uri 'none'; form-action 'none'">
+  <title>Учёт портфеля</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=PT+Sans:wght@400;700&family=PT+Serif:wght@400;700&display=swap">
+  <link rel="stylesheet" href="src/web/styles.css">
+</head>
+<body>
+  <header class="bar">
+    <div class="bar-inner">
+      <select id="portfolio" aria-label="Портфель" hidden></select>
+      <span id="source" class="muted"></span>
+      <nav class="actions" id="actions" hidden>
+        <button type="button" id="btn-reload">Обновить</button>
+        <button type="button" id="btn-prices">Актуализировать цены</button>
+        <button type="button" id="btn-add" class="primary">Внести операцию</button>
+        <button type="button" id="btn-logout" class="quiet">Выйти</button>
+      </nav>
+    </div>
+  </header>
+
+  <main id="app">
+    <section id="setup" class="setup" hidden>
+      <h1>Подключите репозиторий с данными</h1>
+      <p>Приложение не хранит данные само: оно читает и записывает CSV в вашем приватном репозитории на GitHub. Доступ даёт токен, который остаётся только в этом браузере.</p>
+      <form id="setup-form" class="form" autocomplete="off">
+        <label>Владелец репозитория<input name="owner" required placeholder="логин на GitHub"></label>
+        <label>Репозиторий<input name="repo" required value="investments_db"></label>
+        <label>Ветка<input name="branch" required value="main"></label>
+        <label>Токен GitHub<input name="token" type="password" required placeholder="github_pat_…"></label>
+        <label class="check"><input name="remember" type="checkbox" checked> Запомнить на этом устройстве</label>
+        <p class="hint">Создайте fine-grained токен: GitHub → Settings → Developer settings → Fine-grained tokens. Repository access — только репозиторий с данными, Permissions → Contents: Read and write, срок — не больше года.</p>
+        <button type="submit" class="primary">Подключить</button>
+        <p id="setup-error" class="error" role="alert"></p>
+      </form>
+    </section>
+
+    <section id="status" class="status" role="status" hidden></section>
+    <div id="view"></div>
+  </main>
+
+  <dialog id="op-dialog">
+    <form id="op-form" class="form" method="dialog" autocomplete="off">
+      <h2>Новая операция</h2>
+      <div class="grid2">
+        <label>Дата<input name="date" type="date" required></label>
+        <label>Тип<select name="type" required></select></label>
+      </div>
+      <label>Бумага<input name="ticker" list="tickers" placeholder="тикер, пусто для денежных операций"></label>
+      <datalist id="tickers"></datalist>
+      <fieldset id="new-sec" hidden>
+        <legend>Новой бумаги нет в справочнике — добавим её</legend>
+        <div class="grid2">
+          <label>Название<input name="sec_name"></label>
+          <label>ISIN<input name="sec_isin" pattern="[A-Z]{2}[A-Z0-9]{10}"></label>
+          <label>Класс<select name="sec_class">
+            <option>Облигации</option><option>Акции</option><option>Фонды</option>
+            <option>Денежный рынок</option><option>Золото</option><option>Прочее</option>
+          </select></label>
+          <label>Купон в год, ₽ на 1 шт<input name="sec_coupon" inputmode="decimal"></label>
+        </div>
+      </fieldset>
+      <div class="grid2">
+        <label>Количество, шт<input name="qty" inputmode="decimal"></label>
+        <label>Сумма без НКД, ₽<input name="amount" inputmode="decimal" required></label>
+        <label>НКД, ₽<input name="aci" inputmode="decimal"></label>
+        <label>Комиссия, ₽<input name="fee" inputmode="decimal"></label>
+        <label>НДФЛ удержан, ₽<input name="tax" inputmode="decimal"></label>
+        <label>Себестоимость проданного, ₽<input name="cost_sold" inputmode="decimal"></label>
+      </div>
+      <label>Почему / комментарий<textarea name="comment" rows="2"></textarea></label>
+      <p id="op-error" class="error" role="alert"></p>
+      <div class="row-end">
+        <button type="button" id="op-cancel" class="quiet">Отмена</button>
+        <button type="submit" class="primary" id="op-save">Сохранить в репозиторий</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module" src="src/web/app.js"></script>
+</body>
+</html>

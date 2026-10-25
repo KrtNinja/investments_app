@@ -1,0 +1,11 @@
+{
+  "name": "investments_app",
+  "private": true,
+  "type": "module",
+  "bin": { "invest": "cli/invest.js" },
+  "scripts": {
+    "test": "node --test",
+    "invest": "node cli/invest.js"
+  },
+  "engines": { "node": ">=18" }
+}
