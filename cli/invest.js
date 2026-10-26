@@ -49,6 +49,7 @@ function store() {
 }
 
 const rub = (x) => new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2, minimumFractionDigits: 2 }).format(x) + ' ₽';
+const pct2 = (x) => (x === null || x === undefined) ? '—' : (x * 100).toFixed(2) + '%';
 const pct = (x) => (x === null || x === undefined) ? '—' : (x * 100).toFixed(1) + '%';
 
 function printSummary(name, r) {
@@ -58,6 +59,7 @@ function printSummary(name, r) {
   console.log(`  Чистые вложения   ${rub(c.net)}`);
   console.log(`  Прирост           ${rub(c.growth)}  (${pct(c.growth_pct)})`);
   console.log(`  Купоны в месяц    ${rub(g.income_month)} на руки из ${rub(g.target_monthly_income)} (${pct(g.income_share)})`);
+  console.log(`  Купонная доходн.  ${pct2(g.current_yield)} до налога, ${pct2(g.current_yield_net)} на руки (${rub(g.income_year)} в год)`);
   if (g.target_sum) console.log(`  Нужно капитала    ${rub(g.target_sum)}, пройдено ${pct(g.progress)}`);
   console.log('\n  Бумаги:');
   for (const p of r.positions.filter((x) => x.qty)) {

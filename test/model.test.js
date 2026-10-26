@@ -44,6 +44,10 @@ test('капитал, вложения и прирост', () => {
   // прирост = капитал + на карту − реинвест − вложено = 10255.1 + 250 − 250 − 10000
   close(r.capital.growth, 255.1);
   close(r.goal.income_month, 5 * 120 * 0.87 / 12);
+  close(r.goal.income_year, 5 * 120);
+  // купонная доходность: купон к цене без НКД
+  close(r.goal.current_yield, 120 / 990);
+  close(r.goal.current_yield_net, 120 / 990 * 0.87);
   assert.deepEqual(snapshot(r), { date: '2030-01-10', net_invested: 10000, capital: 10255.1, growth: 255.1 });
 });
 

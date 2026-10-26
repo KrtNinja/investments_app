@@ -153,6 +153,7 @@ function render() {
     fig('Капитал', F.rub0(c.capital), `на ${F.date(s.prices_date)}`),
     fig('Чистые вложения', F.rub0(c.net)),
     fig('Прирост', h('span', { class: sign(c.growth) }, F.rub0(c.growth)), F.pct(c.growth_pct)),
+    fig('Купонная доходность', F.pct2(g.current_yield), `на руки ${F.pct2(g.current_yield_net)} · ${F.rub0(g.income_year)} в год`),
     fig('Свободные деньги', F.rub0(c.cash)),
     g.target_sum ? fig('Нужно капитала для цели', F.rub0(g.target_sum), `пройдено ${F.pct(g.progress)}`) : null);
 
@@ -171,7 +172,7 @@ function render() {
   const R = (x) => x === null || x === undefined ? '—' : F.rub(x) + ' ₽';
   const allFigures = h('details', { class: 'more' },
     h('summary', {}, 'Все ключевые цифры'),
-    h('p', { class: 'note-line' }, `Цены на ${F.date(s.prices_date)}. Прирост = капитал + доход на карту − реинвест с карты − чистые вложения.`),
+    h('p', { class: 'note-line' }, `Цены на ${F.date(s.prices_date)}. Прирост = капитал + доход на карту − реинвест с карты − чистые вложения. Купонная доходность = купоны в год / стоимость бумаг без НКД; на руки — за вычетом налога.`),
     kv([
       ['Пополнено (свои деньги)', R(c.deposits)],
       ['Выведено', R(c.withdrawals)],
@@ -188,6 +189,9 @@ function render() {
       ['Налоги', R(c.taxes)],
       ['Комиссии', R(c.fees)],
       ['Прогресс к цели', F.pct(g.progress)],
+      ['Купоны в год (до налога, оценка)', R(g.income_year)],
+      ['Купонная доходность (до налога)', F.pct2(g.current_yield)],
+      ['Купонная доходность на руки', F.pct2(g.current_yield_net)],
       ['Купоны в месяц на руки (оценка)', R(g.income_month)],
       ['Доля от целевого потока', F.pct(g.income_share)],
     ]));

@@ -144,11 +144,17 @@ export function goal(pos, cap, iss, settings) {
   const monthly = n(settings.target_monthly_income);
   const yld = iss.reduce((a, r) => a + r.target * r.coupon_yield, 0);
   const target_sum = yld === 0 ? null : monthly * 12 / (1 - tax) / yld;
-  const income_month = pos.reduce((a, p) => a + p.qty * p.coupon_year, 0) * (1 - tax) / 12;
+  const income_year = pos.reduce((a, p) => a + p.qty * p.coupon_year, 0);
+  const income_month = income_year * (1 - tax) / 12;
+  // Текущая купонная доходность: купоны в год / стоимость бумаг без НКД (только бумаги с ценой и остатком).
+  const priced = pos.filter((p) => p.qty > 0 && p.price > 0);
+  const cost = priced.reduce((a, p) => a + p.qty * p.price, 0);
+  const current_yield = cost === 0 ? null : priced.reduce((a, p) => a + p.qty * p.coupon_year, 0) / cost;
   return {
     target_monthly_income: monthly, target_yield: yld, target_sum,
     progress: target_sum ? cap.capital / target_sum : null,
-    income_month, income_share: monthly === 0 ? null : income_month / monthly,
+    income_year, income_month, income_share: monthly === 0 ? null : income_month / monthly,
+    current_yield, current_yield_net: current_yield === null ? null : current_yield * (1 - tax),
   };
 }
 
