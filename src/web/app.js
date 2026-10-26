@@ -8,7 +8,9 @@ const $ = (id) => document.getElementById(id);
 const CONN_KEY = 'invest.connection';
 const LAST_KEY = 'invest.portfolio';
 
-const state = { store: null, registry: [], pf: null, result: null };
+const state = { store: null, registry: [], pf: null, result: null, ops: null };
+const OPS_PAGE = 20;
+const opsDefaults = () => ({ q: '', type: '', period: '', ticker: '', limit: OPS_PAGE });
 
 // ---------- форматирование ----------
 const nf2 = new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -45,17 +47,28 @@ function h(tag, attrs = {}, ...children) {
   return e;
 }
 
-function table(cols, rows, { foot, action, rowClass } = {}) {
+// group(r) → { key, label } — перед первой строкой каждой группы вставляется строка-заголовок.
+function table(cols, rows, { foot, action, rowClass, group, wrapClass } = {}) {
+  const span = cols.length + (action ? 1 : 0);
   const thead = h('thead', {}, h('tr', {}, cols.map((c) => h('th', { class: c.l ? 'l' : '' }, c.label)), action ? h('th', {}) : null));
-  const tbody = h('tbody', {}, rows.map((r) => h('tr', { class: rowClass ? rowClass(r) || null : null },
-    cols.map((c) => {
-      const v = r[c.key];
-      return h('td', { class: [c.l ? 'l' : '', c.wrap ? 'wrap' : '', c.note ? 'note' : '', c.signed ? sign(v) : ''].join(' ').trim() || null },
-        (c.fmt || F.text)(v, r));
-    }),
-    action ? h('td', {}, action(r)) : null)));
-  const tfoot = foot ? h('tfoot', {}, h('tr', {}, cols.map((c) => h('td', { class: c.l ? 'l' : '' }, foot[c.key] === undefined ? '' : (c.fmt || F.text)(foot[c.key]))), action ? h('td') : null)) : null;
-  return h('div', { class: 'table-wrap' }, h('table', {}, thead, tbody, tfoot));
+  const body = [];
+  let last;
+  for (const r of rows) {
+    if (group) {
+      const g = group(r);
+      if (g.key !== last) { body.push(h('tr', { class: 'group' }, h('th', { colspan: span, scope: 'rowgroup', class: 'l' }, g.label))); last = g.key; }
+    }
+    body.push(h('tr', { class: rowClass ? rowClass(r) || null : null },
+      cols.map((c) => {
+        const v = r[c.key];
+        return h('td', { class: [c.l ? 'l' : '', c.wrap ? 'wrap' : '', c.note ? 'note' : '', c.signed ? sign(v) : ''].join(' ').trim() || null },
+          (c.fmt || F.text)(v, r));
+      }),
+      action ? h('td', {}, action(r)) : null));
+  }
+  const tbody = h('tbody', {}, body);
+  const tfoot = foot ? h('tfoot', {}, h('tr', {}, cols.map((c) => h('td', { class: [c.l ? 'l' : '', c.signed ? sign(foot[c.key]) : ''].join(' ').trim() || null }, foot[c.key] === undefined ? '' : (c.fmt || F.text)(foot[c.key]))), action ? h('td') : null)) : null;
+  return h('div', { class: 'table-wrap' + (wrapClass ? ' ' + wrapClass : '') }, h('table', {}, thead, tbody, tfoot));
 }
 
 function status(text, kind = '') {
@@ -265,23 +278,7 @@ function render() {
     { key: 'due', label: 'Доплатить (+) / вернуть (−)', fmt: F.rub, signed: true },
   ].filter(Boolean);
 
-  const opsRows = r.flows.slice().reverse();
-  const opsTable = table([
-    { key: 'n', label: '№', l: true },
-    { key: 'date', label: 'Дата', l: true, fmt: F.date },
-    { key: 'type', label: 'Тип', l: true },
-    { key: 'name', label: 'Бумага', l: true },
-    { key: 'qty', label: 'Кол-во', fmt: (x) => x === null || x === undefined ? '' : F.int(x) },
-    { key: 'amount', label: 'Сумма', fmt: F.rub },
-    { key: 'aci', label: 'НКД', fmt: F.rubz },
-    { key: 'fee', label: 'Комиссия', fmt: F.rubz },
-    { key: 'tax', label: 'Налог', fmt: F.rubz },
-    { key: 'price_per', label: 'Цена за шт', fmt: F.price },
-    { key: 'flow', label: 'Поток по счёту', fmt: F.rub, signed: true },
-    { key: 'to_card', label: 'На карту', fmt: F.rubz },
-    { key: 'cost_sold', label: 'Себестоимость проданного', fmt: F.opt },
-    { key: 'comment', label: 'Комментарий', l: true, wrap: true, note: true },
-  ], opsRows, { action: (row) => h('button', { type: 'button', class: 'link', onclick: (e) => deleteOp(row.n, e.currentTarget) }, 'Удалить') });
+  const opsTable = opsSection(r.flows);
 
   const txt = (k) => h('span', { class: 'prose' }, s[k] || '—');
   const strategy = kv([
@@ -361,6 +358,111 @@ function render() {
     s.issues_source ? h('p', { class: 'note-line' }, s.issues_source) : null,
     targetIssues,
   );
+}
+
+// ---------- раздел «Операции»: фильтры, порции, группы по месяцам ----------
+const MONTHS = ['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'];
+const monthLabel = (ym) => { const [y, m] = ym.split('-'); return `${MONTHS[Number(m) - 1]} ${y}`; };
+const cap1 = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+
+const OPS_COLS = [
+  { key: 'n', label: '№', l: true },
+  { key: 'date', label: 'Дата', l: true, fmt: F.date },
+  { key: 'type', label: 'Тип', l: true },
+  { key: 'name', label: 'Бумага', l: true },
+  { key: 'qty', label: 'Кол-во', fmt: (x) => x === null || x === undefined ? '' : F.int(x) },
+  { key: 'amount', label: 'Сумма', fmt: F.opt },
+  { key: 'aci', label: 'НКД', fmt: F.rubz },
+  { key: 'fee', label: 'Комиссия', fmt: F.rubz },
+  { key: 'tax', label: 'Налог', fmt: F.rubz },
+  { key: 'price_per', label: 'Цена за шт', fmt: F.price },
+  { key: 'flow', label: 'Поток по счёту', fmt: F.rub, signed: true },
+  { key: 'to_card', label: 'На карту', fmt: F.rubz },
+  { key: 'cost_sold', label: 'Себестоимость проданного', fmt: F.opt },
+  { key: 'comment', label: 'Комментарий', l: true, wrap: true, note: true },
+];
+
+function opsMatch(r, v) {
+  if (v.type && r.type !== v.type) return false;
+  if (v.ticker && r.ticker !== v.ticker) return false;
+  if (v.period && !String(r.date).startsWith(v.period)) return false;
+  if (v.q) {
+    const hay = [r.type, r.ticker, r.name, r.comment, F.date(r.date)].join(' ').toLowerCase();
+    if (!v.q.toLowerCase().split(/\s+/).filter(Boolean).every((w) => hay.includes(w))) return false;
+  }
+  return true;
+}
+
+function opsSection(flows) {
+  if (!state.ops || state.ops.pf !== state.pf.id) state.ops = { pf: state.pf.id, ...opsDefaults() };
+  const v = state.ops;
+  const all = flows.slice().reverse(); // новые сверху
+  const uniq = (xs) => [...new Set(xs.filter(Boolean))];
+  const types = uniq(all.map((r) => r.type)).sort((a, b) => a.localeCompare(b, 'ru'));
+  const tickers = uniq(all.map((r) => r.ticker)).sort((a, b) => a.localeCompare(b, 'ru'));
+  const months = uniq(all.map((r) => String(r.date).slice(0, 7)));
+  const years = uniq(months.map((m) => m.slice(0, 4)));
+  const nameOf = (t) => (all.find((r) => r.ticker === t) || {}).name || t;
+
+  const out = h('div', { class: 'ops-out' });
+  const sel = (key, label, options) => h('label', {}, label,
+    h('select', { onchange: (e) => { v[key] = e.target.value; v.limit = OPS_PAGE; draw(); } },
+      options.map(([val, text, group]) => group
+        ? h('optgroup', { label: group }, text.map(([gv, gt]) => h('option', { value: gv, selected: v[key] === gv }, gt)))
+        : h('option', { value: val, selected: v[key] === val }, text))));
+  const search = h('input', { type: 'search', value: v.q, placeholder: 'бумага, тип, комментарий, дата', 'aria-label': 'Поиск по операциям' });
+  let timer;
+  search.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(() => { v.q = search.value.trim(); v.limit = OPS_PAGE; draw(); }, 150); });
+  const reset = h('button', { type: 'button', class: 'link', onclick: () => { Object.assign(v, opsDefaults()); render(); } }, 'Сбросить');
+
+  const filters = h('div', { class: 'ops-filters' },
+    h('label', { class: 'ops-q' }, 'Поиск', search),
+    sel('type', 'Тип', [['', 'Все типы'], ...types.map((t) => [t, t])]),
+    sel('ticker', 'Бумага', [['', 'Все бумаги'], ...tickers.map((t) => [t, nameOf(t)])]),
+    sel('period', 'Период', [['', 'Всё время'], ...years.map((y) => [null,
+      [[y, `Весь ${y} год`], ...months.filter((m) => m.startsWith(y)).map((m) => [m, cap1(monthLabel(m))])], y])]),
+    reset);
+
+  function draw() {
+    const rows = all.filter((r) => opsMatch(r, v));
+    const shown = rows.slice(0, v.limit);
+    const filtered = v.q || v.type || v.ticker || v.period;
+    reset.hidden = !filtered;
+    const s = (k) => rows.reduce((a, r) => a + (Number(r[k]) || 0), 0);
+    // сумма осмысленна, только когда выбран один тип операции
+    const foot = rows.length ? {
+      n: filtered ? 'Итого по выборке' : 'Итого', amount: v.type ? s('amount') : undefined,
+      aci: s('aci'), fee: s('fee'), tax: s('tax'), flow: s('flow'), to_card: s('to_card'),
+    } : null;
+    const perMonth = {};
+    for (const r of rows) { const m = String(r.date).slice(0, 7); perMonth[m] = (perMonth[m] || 0) + 1; }
+    const more = rows.length - shown.length;
+    out.replaceChildren(...[
+      h('p', { class: 'note-line ops-count' }, rows.length === all.length
+        ? `Всего операций: ${all.length}. Показаны ${shown.length === rows.length ? 'все' : `последние ${shown.length}`}.`
+        : `Найдено ${rows.length} из ${all.length}${more ? `, показаны последние ${shown.length}` : ''}.`),
+      rows.length
+        ? table(OPS_COLS, shown, {
+          wrapClass: 'ops-wrap',
+          foot,
+          group: (r) => { const m = String(r.date).slice(0, 7); return { key: m, label: `${cap1(monthLabel(m))} · ${perMonth[m]} ${plural(perMonth[m], 'операция', 'операции', 'операций')}` }; },
+          action: (row) => h('button', { type: 'button', class: 'link', onclick: (e) => deleteOp(row.n, e.currentTarget) }, 'Удалить'),
+        })
+        : h('p', { class: 'muted' }, 'Ничего не найдено.'),
+      more ? h('div', { class: 'ops-more' },
+        h('button', { type: 'button', onclick: () => { v.limit += 50; draw(); } }, `Показать ещё ${Math.min(50, more)}`),
+        more > 50 ? h('button', { type: 'button', class: 'quiet', onclick: () => { v.limit = Infinity; draw(); } }, `Показать все (${rows.length})`) : null) : null,
+      rows.length ? h('p', { class: 'note-line' }, 'Итоги считаются по всей выборке, а не только по показанным строкам. «Сумма» в итоге — только когда выбран один тип.') : null].filter(Boolean));
+  }
+  draw();
+  return h('div', { class: 'ops' }, filters, out);
+}
+
+function plural(n, one, few, many) {
+  const a = n % 10, b = n % 100;
+  if (a === 1 && b !== 11) return one;
+  if (a >= 2 && a <= 4 && (b < 12 || b > 14)) return few;
+  return many;
 }
 
 function fig(label, value, note) {
